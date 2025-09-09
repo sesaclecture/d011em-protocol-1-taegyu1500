@@ -1,3 +1,4 @@
 .env/
-
+.evn/
+.gitignore
 */__pycache__/*

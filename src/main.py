@@ -25,8 +25,13 @@ def blink_led() -> None:
     - 종료시 LED는 OFF 상태
     """
     # TODO: blink_led 구현
+    for _ in range(10):
+        LED(18).on()
+        time.sleep(1)
+        LED(18).off()
+        time.sleep(1)
 
-    raise NotImplementedError
+    
 
 
 def check_to_input_button() -> None:
@@ -39,8 +44,20 @@ def check_to_input_button() -> None:
     - 버튼 입력을 10번 받았으면 종료.
     """
     # TODO: check_to_input_button 구현
-
-    raise NotImplementedError
+    btn = Button(18, pull_up=True)
+    btn_prev = btn.is_pressed
+    count = 0 
+    while count < 10:
+        curr = btn.is_pressed
+        if curr != btn_prev:
+            if curr:
+                print("pressed")
+                count += 1
+            else:
+                print("released")
+        btn_prev = curr
+        time.sleep(0.01)
+    return
 
 
 def blink_led_through_button() -> None:
@@ -54,9 +71,21 @@ def blink_led_through_button() -> None:
     """
     # TODO: blink_led_through_button 구현
     led = LED(12)
-    led.on()
+    btn = Button(13, pull_up=True)
+    prev = btn.is_pressed
+    count = 0
+    while count < 10:
+        if btn.is_pressed:
+            led.toggle()
+            time.sleep(0.5)
+        else:
+            led.off()
+        if btn.is_pressed and not prev:
+            count += 1
+    led.off()
+    return
 
-    raise NotImplementedError
+
 
 
 def transmit_msg() -> None:
@@ -66,8 +95,13 @@ def transmit_msg() -> None:
     - 개행을 붙여 전송 (수신/테스트 편의)
     """
     # TODO: blink_led_through_button 구현
+    ser = Serial('/dev/ttyAMA3', baudrate=115200, timeout=1.0)
+    for i in range(10):
+        ser.write((f"Hello World! {i}\r\n").encode())
+        time.sleep(1)
+    ser.close()
+    return
 
-    raise NotImplementedError
 
 
 def receive_msg() -> None:
@@ -76,8 +110,79 @@ def receive_msg() -> None:
     - 'exit' (대소문자 무시) 라인을 수신하면 함수 종료
     """
     # TODO: blink_led_through_button 구현
+    ser = Serial('/dev/ttyAMA3', baudrate=115200, timeout=1.0)
+    time.sleep(2)
+    buf = bytearray()
+    try:
+        while True:
+            lines = []
+            # prefer readline if available
+            if hasattr(ser, "readline"):
+                raw = ser.readline()
+                if not raw:
+                    # no data right now
+                    time.sleep(0.01)
+                    continue
+                try:
+                    text = raw.decode()
+                except Exception:
+                    text = str(raw)
+                # readline may return multiple lines if the fake provides them; split safely
+                parts = text.splitlines()
+                for p in parts:
+                    lines.append(p)
+            else:
+                # fallback: accumulate bytes and split on '\n'
+                data = b""
+                if hasattr(ser, "read_all"):
+                    data = ser.read_all()
+                elif hasattr(ser, "read_until"):
+                    data = ser.read_until(b"\n")
+                elif hasattr(ser, "read"):
+                    # try to read whatever is available
+                    try:
+                        if hasattr(ser, "in_waiting"):
+                            n = getattr(ser, "in_waiting", 0)
+                            data = ser.read(n or 1)
+                        else:
+                            data = ser.read(1)
+                    except Exception:
+                        data = ser.read(1)
+                else:
+                    # nothing to read, wait a bit
+                    time.sleep(0.01)
+                    continue
 
-    raise NotImplementedError
+                if not data:
+                    time.sleep(0.01)
+                    continue
+
+                buf.extend(data)
+                while True:
+                    if b"\n" in buf:
+                        idx = buf.index(b"\n")
+                        line_bytes = bytes(buf[:idx])
+                        del buf[:idx + 1]
+                        try:
+                            lines.append(line_bytes.decode())
+                        except Exception:
+                            lines.append(str(line_bytes))
+                    else:
+                        break
+
+            # process complete lines
+            for l in lines:
+                s = l.strip()
+                if s:
+                    print(s)
+                if s.lower() == "exit":
+                    ser.close()
+                    return
+    finally:
+        try:
+            ser.close()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
